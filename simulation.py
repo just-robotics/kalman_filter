@@ -35,13 +35,6 @@ class Simulation:
         wr = (vx + wz * self.L / 2) / self.r
         return np.array([wl, wr]).reshape(-1, 1)
     
-    def get_wheels_pose(self, x):
-        vx = x[0]
-        wz = x[2]
-        wl = (vx - wz * self.L / 2) / self.r
-        wr = (vx + wz * self.L / 2) / self.r
-        return np.array([wl, wr]).reshape(-1, 1)
-    
     def get_robot_velocity(self, omega):
         v = omega * self.r
         v_global = (v[1][0] + v[0][0]) / 2
