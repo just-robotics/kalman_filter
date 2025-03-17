@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from kalman_filter import kalman_filter
+
 
 class Simulation:
     
@@ -21,6 +23,8 @@ class Simulation:
         self.x_gps = np.zeros((self.epochs, 3, 1), dtype=np.float64)
         self.x_enc = np.zeros((self.epochs, 3, 1), dtype=np.float64)
         self.enc_noise = np.zeros((2, 1))
+        self.est_e = 0
+        self.x_est = np.zeros((self.epochs, 3, 1), dtype=np.float64)
         
     def R(self, theta):
         theta = theta[0]
@@ -69,6 +73,9 @@ class Simulation:
         omega = self.get_wheels_velocity(self.v[t-1])# + self.enc_noise
         v = self.get_robot_velocity(omega)
         self.x_enc[t] = self.x_enc[t-1] + self.R(self.x_enc[t-1][2]) @ v * self.dt + np.random.normal(self.mean_enc, self.std_enc, 3).reshape(-1, 1)
+
+        self.est_e = kalman_filter(self.std_enc, self.std_gps, self.x_enc[t][:, :2], self.x_gps[t][:, :2], self.est_e)
+        self.x_est[t][:, :2] = self.x_enc[t][:, :2] - self.est_e
         
     def run(self):
         for t in range(self.epochs):
@@ -82,11 +89,13 @@ class Simulation:
         axs[0][0].plot(self.t, self.x[:, 0], label='x true', color='blue')
         axs[0][0].plot(self.t, self.x_gps[:, 0], label='x gps', color='red')
         axs[0][0].plot(self.t, self.x_enc[:, 0], label='x enc', color='green')
+        axs[0][0].plot(self.t, self.x_est[:, 0], label='x est', color='black')
         
         axs[0][1].set_title('y')
         axs[0][1].plot(self.t, self.x[:, 1], label='y true', color='blue')
         axs[0][1].plot(self.t, self.x_gps[:, 1], label='y gps', color='red')
         axs[0][1].plot(self.t, self.x_enc[:, 1], label='y enc', color='green')
+        axs[0][1].plot(self.t, self.x_est[:, 1], label='y est', color='black')
         
         axs[1][0].set_title('$\\theta$')
         axs[1][0].plot(self.t, self.x[:, 2], label='$\\theta$ true', color='blue')
@@ -96,7 +105,8 @@ class Simulation:
         axs[1][1].plot(self.x[:, 0], self.x[:, 1], label='x true', color='blue')
         axs[1][1].plot(self.x_gps[:, 0], self.x_gps[:, 1], label='x gps', color='red')
         axs[1][1].plot(self.x_enc[:, 0], self.x_enc[:, 1], label='x enc', color='green')
-        
+        axs[1][1].plot(self.x_est[:, 0], self.x_est[:, 1], label='x est', color='black')
+
         for ax in axs.flatten():
             ax.legend(loc='upper left')
             ax.grid(True)
@@ -123,7 +133,7 @@ if __name__ == '__main__':
     mean_gps = 0
     std_gps = 1
     mean_enc = 0
-    std_enc = 0.02
+    std_enc = 0.1
     
     robot_base = 0.2
     wheel_radius = 0.04
