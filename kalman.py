@@ -1,133 +1,133 @@
 import numpy as np
-import matplotlib.pyplot as plt
+from typing import NamedTuple, Dict
 
 
-def kalman_filter(sigma_ksi, sigma_n, y_enc, y_gps, est_e_last):
-    est_e = est_e_last + sigma_ksi / (2 * sigma_n**2) *\
-    (np.sqrt(sigma_ksi**2 + 4 * sigma_n**2) - sigma_ksi) *\
-    ((y_enc - y_gps) - est_e_last)
-    return est_e
+class RobotParams ( NamedTuple ) :
+    r: float
+    L: float
 
+class KalmanFilter :
+    def __init__(self, X0: np.ndarray, Dx: np.ndarray,
+                 sigma_n: float, sigma_ksi: float, params: RobotParams) :
+        self.X = X0.copy ()
+        self.Dx = Dx.copy ()
+        self.sigma_n = sigma_n
+        self.sigma_ksi = sigma_ksi
+        self.params = params
 
-def const(_, c):
-    return c
+        self.H = np.array ( [
+            [1, 0, 0, 0, 0, 0, 0],
+            [0, 1, 0, 0, 0, 0, 0]
+        ] )
 
+        self.G = np.array ( [
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [0, 0],
+            [1, 0],
+            [0, 1]
+        ] )
 
-def linear(t, _):
-    return t
+    def predict(self, meas_enc: np.ndarray, dt: float) -> None :
+        self.X = self._make_F ( meas_enc, dt )
+        dF = self._make_dF ( dt )
+        Dksi = np.diag ( [self.sigma_ksi ** 2, self.sigma_ksi ** 2] )
+        self.Dx = dF @ self.Dx @ dF.T + self.G @ Dksi @ self.G.T
 
+    def update(self, meas_gps: np.ndarray) -> None :
+        Dn = np.diag ( [self.sigma_n ** 2, self.sigma_n ** 2] )
+        S = self.H @ self.Dx @ self.H.T + Dn
+        K = self.Dx @ self.H.T @ np.linalg.inv ( S )
+        y = meas_gps - self.H @ self.X
+        self.X = self.X + K @ y
+        self.Dx = (np.eye ( 7 ) - K @ self.H) @ self.Dx
 
-def quadratic(t, _):
-    return t**2
+    def _make_F(self, meas_enc: np.ndarray, dt: float) -> np.ndarray :
 
+        X = self.X.reshape ( -1 )
+        r, L = self.params.r, self.params.L
+        wR, wL = meas_enc.flatten ()
 
-def simulation(gps_mean, gps_std, enc_mean, enc_std, size, func, c=0):
-    data = []
-    data_enc = []
-    data_gps = []
-    enc_pose_est = []
-    kalman_err = []
-    est_err = []
-    e = 0
-    noise_enc = 0
-    
-    for t in range(size):
-        data.append(func(t, c))
+        F = np.zeros ( (7, 1) )
 
-        noise_enc = noise_enc + np.random.normal(loc=enc_mean, scale=enc_std)
-        data_enc.append(data[t] + noise_enc)
+        F[0, 0] = X[0] + X[2] * np.cos ( X[3] ) * dt  # x
+        F[1, 0] = X[1] + X[2] * np.sin ( X[3] ) * dt  # y
+        F[2, 0] = (wR - X[5] + wL - X[6]) * r / 2  # v
+        F[3, 0] = X[3] + X[4] * dt  # theta
+        F[4, 0] = (wR - X[5] - wL + X[6]) * r / L  # omega
+        F[5, 0] = X[5]  # bias_wR
+        F[6, 0] = X[6]  # bias_wL
 
-        noise_gps = np.random.normal(loc=gps_mean, scale=gps_std)
-        data_gps.append(data[t] + noise_gps)
+        return F
 
-        e = kalman_filter(enc_std, gps_std, data_enc[t], data_gps[t], e)
-        est_err.append(e)
-        
-        enc_pose_est.append(data_enc[t] - e)
-        kalman_err.append(data[t] - enc_pose_est[t])
+    def _make_dF(self, dt: float) -> np.ndarray :
 
-    return np.std(kalman_err)
+        X = self.X.flatten ()
+        r, L = self.params.r, self.params.L
 
+        dF = np.eye ( 7 )
 
-def change_enc_std(std_enc_arrange, gps_std_array):
-    const_data = []
-    linear_data = []
-    quadratic_data = []
-    
-    for i in range(std_enc_arrange.shape[0]):
-        gps_data_const = []
-        gps_data_linear = []
-        gps_data_quadro = []
-        for gps_std in gps_std_array:
-            gps_data_const.append(simulation(0, gps_std, 0, std_enc_arrange[i], 1000, const, 10))
-            gps_data_linear.append(simulation(0, gps_std, 0, std_enc_arrange[i], 1000, linear))
-            gps_data_quadro.append(simulation(0, gps_std, 0, std_enc_arrange[i], 1000, quadratic))
-        const_data.append(gps_data_const)
-        linear_data.append(gps_data_linear)
-        quadratic_data.append(gps_data_quadro)
-    
-    return const_data, linear_data, quadratic_data
-     
-    
-if __name__ == '__main__':
-    # mean = 0        
-    # std_dev_enc = 10
-    # std_dev_gps = 5
-    # size = 1000
-    # time = np.arange(0, size, 1)
-    
-    # data, data_enc, data_gps, est_err, enc_pose_est, kalman_err = simulation(mean, std_dev_gps, mean, std_dev_enc, size, linear)
-    
-    # print(np.std(kalman_err))
-    
-    # plt.plot(time, data, label='true pose', color='blue')
-    # plt.plot(time, data_enc, label='enc', color='green')
-    # plt.plot(time, data_gps, label='gps', color='red')
-    # plt.plot(time, est_err, label='error', color='black')
-    # plt.plot(time, kalman_err, label='Kalman error', color='orange')
-    # plt.xlabel("time")
-    # plt.ylabel("pose")
-    # plt.legend()
-    # plt.show()
-    
-    std_enc_arrange = np.arange(0, 10.1, 0.1)
-    std_gps_array = [1, 5, 10]
-    
-    const_data, linear_data, quadratic_data = change_enc_std(std_enc_arrange, std_gps_array)
-    
-    const_data = np.array(const_data)
-    linear_data = np.array(linear_data)
-    quadratic_data = np.array(quadratic_data)
-    
-    plt.figure(1)
-    plt.plot(std_enc_arrange, const_data.T[0], label='gps_std = 1', color='blue')
-    plt.plot(std_enc_arrange, const_data.T[1], label='gps_std = 5', color='green')
-    plt.plot(std_enc_arrange, const_data.T[2], label='gps_std = 10', color='red')
-    plt.title('Const motion')
-    plt.xlabel('enc_std_dev')
-    plt.ylabel('std_KF_error')
-    plt.legend()
-    plt.grid()
-    
-    plt.figure(2)
-    plt.plot(std_enc_arrange, linear_data.T[0], label='gps_std = 1', color='blue')
-    plt.plot(std_enc_arrange, linear_data.T[1], label='gps_std = 5', color='green')
-    plt.plot(std_enc_arrange, linear_data.T[2], label='gps_std = 10', color='red')
-    plt.title('Linear motion')
-    plt.xlabel('enc_std_dev')
-    plt.ylabel('std_KF_error')
-    plt.legend()
-    plt.grid()
-    
-    plt.figure(3)
-    plt.plot(std_enc_arrange, quadratic_data.T[0], label='gps_std = 1', color='blue')
-    plt.plot(std_enc_arrange, quadratic_data.T[1], label='gps_std = 5', color='green')
-    plt.plot(std_enc_arrange, quadratic_data.T[2], label='gps_std = 10', color='red')
-    plt.title('Quadratic motion')
-    plt.xlabel('enc_std_dev')
-    plt.ylabel('std_KF_error')
-    plt.legend()
-    plt.grid()
-    
-    plt.show()
-    
+        theta = X[3].item ()
+        velocity = X[2].item ()
+
+        dF[0, 2] = np.cos ( theta ) * dt
+        dF[0, 3] = -velocity * np.sin ( theta ) * dt
+        dF[1, 2] = np.sin ( theta ) * dt
+        dF[1, 3] = velocity * np.cos ( theta ) * dt
+        dF[2, 5] = -r / 2
+        dF[2, 6] = -r / 2
+        dF[3, 4] = dt
+        dF[4, 5] = -r / L
+        dF[4, 6] = r / L
+
+        return dF
+
+def fusion_kalman_mode2(meas: list, X0: np.ndarray, Dx: np.ndarray,
+                        sigma_n: float, sigma_ksi: float, sim_params: RobotParams) -> dict :
+
+    t = np.array ( [m['t'] for m in meas] )
+    meas_gps = np.array ( [[m['gps_x'], m['gps_y']] for m in meas] ).T
+    meas_enc = np.array ( [[m['wR'], m['wL']] for m in meas] ).T
+
+    X = np.zeros ( (7, len ( t )) )
+    X[:, 0] = X0.reshape ( -1 )
+
+    Dx_hist = np.zeros ( (7, len ( t )) )
+    Dx_hist[:, 0] = np.diag ( Dx )
+
+    ekf = KalmanFilter ( X0, Dx, sigma_n, sigma_ksi, sim_params )
+
+    for i in range ( 1, len ( t ) ) :
+        dt = t[i] - t[i - 1]
+        ekf.predict ( meas_enc[:, i], dt )
+        ekf.update ( meas_gps[:, i] )
+
+        X[:, i] = ekf.X.reshape ( -1 )[:7]
+        Dx_hist[:, i] = np.diag ( ekf.Dx )
+
+    return {'X' : X, 'Dx' : Dx_hist}
+
+if __name__ == "__main__" :
+
+    params = RobotParams ( r=0.1, L=0.5 )
+
+    X0 = np.array ( [[0], [0], [0], [0], [0], [0], [0]] )
+
+    Dx = np.diag ( [0.1, 0.1, 0.1, 0.1, 0.1, 0.01, 0.01] )
+
+    sigma_n = 0.5
+    sigma_ksi = 0.01
+
+    meas = [
+        {'t' : 0.0, 'gps_x' : 0.0, 'gps_y' : 0.0, 'wR' : 0.0, 'wL' : 0.0},
+        {'t' : 0.1, 'gps_x' : 0.1, 'gps_y' : 0.0, 'wR' : 1.0, 'wL' : 0.9},
+        {'t' : 0.2, 'gps_x' : 0.2, 'gps_y' : 0.0, 'wR' : 1.0, 'wL' : 1.0},
+    ]
+
+    result = fusion_kalman_mode2 ( meas, X0, Dx, sigma_n, sigma_ksi, params )
+
+    print ( "Оценки состояния:" )
+    print ( result['X'] )
+
