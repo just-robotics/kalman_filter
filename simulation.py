@@ -104,8 +104,11 @@ class Simulation:
 
         a = self.get_robot_acceleration(t)
 
-        self.enc_noise += self.K_ksi_v * np.random.normal(self.mean_enc, self.std_enc, 3) @ v\
-                          + self.K_ksi_a * np.random.normal(self.mean_enc, self.std_enc, 3) @ a
+        if (a == 0).all() and (v == 0).all():
+            self.enc_noise = np.zeros ( (3, 1) )
+        else:
+            self.enc_noise += self.K_ksi_v * np.random.normal(self.mean_enc, self.std_enc, 3) @ v\
+                              + self.K_ksi_a * np.random.normal(self.mean_enc, self.std_enc, 3) @ a
 
         self.x_enc[t] = self.x_enc[t-1] + self.R(self.x_enc[t-1][2]) @ v * self.dt + self.enc_noise   #+ np.random.normal(self.mean_enc, self.std_enc, 3).reshape(-1, 1)
 

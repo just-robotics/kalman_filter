@@ -72,15 +72,27 @@ class KalmanFilter :
         theta = X[3].item ()
         velocity = X[2].item ()
 
-        dF[0, 2] = np.cos ( theta ) * dt
-        dF[0, 3] = -velocity * np.sin ( theta ) * dt
-        dF[1, 2] = np.sin ( theta ) * dt
-        dF[1, 3] = velocity * np.cos ( theta ) * dt
-        dF[2, 5] = -r / 2
-        dF[2, 6] = -r / 2
-        dF[3, 4] = dt
-        dF[4, 5] = -r / L
-        dF[4, 6] = r / L
+        # dF[0, 2] = np.cos ( theta ) * dt
+        # dF[0, 3] = -velocity * np.sin ( theta ) * dt
+        # dF[1, 2] = np.sin ( theta ) * dt
+        # dF[1, 3] = velocity * np.cos ( theta ) * dt
+        # dF[2, 5] = -r / 2
+        # dF[2, 6] = -r / 2
+        # dF[3, 4] = dt
+        # dF[4, 5] = -r / L
+        # dF[4, 6] = r / L
+
+
+        dF[0, 2] = np.cos ( theta ) * dt#
+        dF[0, 3] = -velocity * np.sin ( theta ) * dt#
+        dF[1, 2] = np.sin ( theta ) * dt#
+        dF[1, 3] = velocity * np.cos ( theta ) * dt#
+        dF[2, 5] = -r / 2#
+        dF[2, 6] = -r / 2#
+        dF[3, 4] = dt#
+        dF[4, 5] = -r / L#
+        dF[4, 6] = r / L#
+        dF[2, 2] = 0
 
         return dF
 
