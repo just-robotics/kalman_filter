@@ -1,0 +1,6 @@
+uwb_streamer:
+  ros__parameters:
+    port: '/dev/ttyACM0'
+    baudrate: 115200
+    reconnect_interval: 5
+    max_no_data_time: 5
