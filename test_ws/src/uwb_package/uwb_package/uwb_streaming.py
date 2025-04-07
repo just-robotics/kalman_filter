@@ -1,11 +1,10 @@
 import rclpy
+import serial
 from rclpy.node import Node
 
 from std_msgs.msg import Float64MultiArray
 
-# import numpy as np
-
-# from uwb_package.submodules.readSensorData import readSensorData
+from uwb_package.submodules.readSensorData import readSensorData, openSerialPort
 
 
 class UWBCoordsStreamer(Node):
@@ -27,24 +26,25 @@ class UWBCoordsStreamer(Node):
         self.get_logger().info(f"reconnect_interval: {self.reconnect_interval}")
         self.get_logger().info(f"max_no_data_time: {self.max_no_data_time}")
 
+        self.ser = serial.Serial(self.port, self.baudrate, timeout=0.1)  # timeout - ??????
+        openSerialPort(self.ser)
+
         self.publisher_ = self.create_publisher(
             Float64MultiArray,
             'uwb_coordinates',
             10
         )
-        timer_period = 0.1
+        timer_period = 0.001
         self.timer = self.create_timer(timer_period, self.timer_callback)
 
     def timer_callback(self):
         msg = Float64MultiArray()
-
-        # TODO: Write code for readSensorData function
-
-        x = 0
-        y = 0
-        msg.data = [x, y]
-        self.publisher_.publish(msg)
-        self.get_logger().info(f'uwb_coordinates: {msg.data}')
+        data = readSensorData(self.ser)
+        if data is not None:
+            msg.data = data
+            self.publisher_.publish(msg)
+        else:
+            self.get_logger().info(f'None')
 
 
 def main(args=None):
